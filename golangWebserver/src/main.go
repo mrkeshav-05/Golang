@@ -4,53 +4,67 @@ import (
     "context"
     "fmt"
     "log"
+    "net/http"
+    "os"
     "time"
 
-    "go.mongodb.org/mongo-driver/bson"
+    "github.com/joho/godotenv"
     "go.mongodb.org/mongo-driver/mongo"
     "go.mongodb.org/mongo-driver/mongo/options"
+    "golangWebserver/src/constants"
 )
 
 func main() {
-    const uri = "mongodb+srv://Keshav:fZGQvGP7vRzgVeZj@neednear1.bm0dook.mongodb.net"
-    const dbName = "learningGo"
-    const collectionName = "exampleCollection"
+    // Load environment variables from .env file
+    err := godotenv.Load()
+    if err != nil {
+        log.Fatalf("Error loading .env file")
+    }
 
-    clientOptions := options.Client().ApplyURI(uri)
+    // Get database connection details from environment variables
+    mongoURI := os.Getenv("MONGO_DB_URI")
+
+    // Connect to MongoDB
+    client, err := mongo.NewClient(options.Client().ApplyURI(mongoURI))
+    if err != nil {
+        log.Fatalf("Failed to create MongoDB client: %v", err)
+    }
+
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
 
-    client, err := mongo.Connect(ctx, clientOptions)
+    err = client.Connect(ctx)
     if err != nil {
         log.Fatalf("Failed to connect to MongoDB: %v", err)
     }
 
-    defer func() {
-        if err := client.Disconnect(ctx); err != nil {
-            log.Fatalf("Failed to disconnect MongoDB: %v", err)
-        }
-    }()
+    defer client.Disconnect(ctx)
 
-    db := client.Database(dbName)
-    collection := db.Collection(collectionName)
-
-    // Insert a document
-    doc := bson.D{
-        {Key: "name", Value: "Keshav"},
-        {Key: "age", Value: 25},
-        {Key: "location", Value: "Lucknow"},
-    }
-    _, err = collection.InsertOne(ctx, doc)
+    // Ping the database to verify connection
+    err = client.Ping(ctx, nil)
     if err != nil {
-        log.Fatalf("Failed to insert document: %v", err)
+        log.Fatalf("Failed to ping MongoDB: %v", err)
     }
 
-    fmt.Printf("Document inserted into collection %q in database %q\n", collectionName, dbName)
+    fmt.Println("Connected to MongoDB!")
 
-    // List collections again
-    collections, err := db.ListCollectionNames(ctx, bson.M{})
-    if err != nil {
-        log.Fatalf("Failed to list collections: %v", err)
+    // Get the database name from constants
+    dbName := constants.DatabaseName
+    // database := client.Database(dbName)
+    fmt.Printf("Using database: %s\n", dbName)
+
+    // Start HTTP server
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Fprintf(w, "Hello, Worldnbgdfffsdsa!")
+    })
+
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
     }
-    fmt.Printf("Collections in database %q: %v\n", dbName, collections)
+
+    log.Printf("Starting server on port %s...", port)
+    if err := http.ListenAndServe(":"+port, nil); err != nil {
+        log.Fatalf("Failed to start server: %v", err)
+    }
 }
